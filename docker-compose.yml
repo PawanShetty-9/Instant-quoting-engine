@@ -1,0 +1,62 @@
+# Production-style stack:  cp .env.example .env  &&  docker compose up -d --build
+# Then open https://$SITE_ADDRESS (or https://localhost with Caddy's local CA).
+name: instant-quoting-engine
+
+services:
+  backend:
+    build: ./backend
+    image: ${IMAGE_PREFIX:-instant-quoting-engine}-backend:${IMAGE_TAG:-latest}
+    env_file: .env
+    environment:
+      QUOTE_ENVIRONMENT: production
+      QUOTE_DATABASE_PATH: /data/quotes.sqlite3
+      # Only reachable through Caddy on the internal network, so trust its X-Forwarded-For.
+      FORWARDED_ALLOW_IPS: "*"
+    volumes:
+      - quote-data:/data
+    tmpfs:
+      - /tmp:size=512m
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    mem_limit: 4g
+    restart: unless-stopped
+    expose: ["8000"]
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ""
+    image: ${IMAGE_PREFIX:-instant-quoting-engine}-frontend:${IMAGE_TAG:-latest}
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+    restart: unless-stopped
+    expose: ["3000"]
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2.10-alpine
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    restart: unless-stopped
+    depends_on: [frontend, backend]
+
+volumes:
+  quote-data:
+  caddy-data:
+  caddy-config:

@@ -1,0 +1,41 @@
+# Render Blueprint: New > Blueprint > select this repository.
+# Two Docker web services in Frankfurt (EU data residency). After the first deploy,
+# set ANTHROPIC_API_KEY (optional) and adjust the URLs if you rename the services.
+services:
+  - type: web
+    name: quote-backend
+    runtime: docker
+    region: frankfurt
+    plan: standard            # >= 2 GB RAM for the OpenCascade kernel
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /healthz
+    numInstances: 1           # SQLite on a persistent disk -> single instance
+    disk:
+      name: quote-data
+      mountPath: /data
+      sizeGB: 5
+    envVars:
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: QUOTE_ADMIN_API_KEY
+        generateValue: true
+      - key: QUOTE_CORS_ORIGINS
+        value: '["https://quote-frontend.onrender.com"]'
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"
+      - key: WEB_CONCURRENCY
+        value: "2"
+
+  - type: web
+    name: quote-frontend
+    runtime: docker
+    region: frankfurt
+    plan: starter
+    dockerContext: ./frontend
+    dockerfilePath: ./frontend/Dockerfile
+    healthCheckPath: /
+    envVars:
+      # Build-time (inlined into the browser bundle): public URL of the backend service.
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: https://quote-backend.onrender.com

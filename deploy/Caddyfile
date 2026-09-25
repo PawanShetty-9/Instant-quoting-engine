@@ -1,0 +1,30 @@
+# Single public entry point: automatic HTTPS (Let's Encrypt) for SITE_ADDRESS,
+# /api -> FastAPI backend, everything else -> Next.js frontend.
+{$SITE_ADDRESS:localhost} {
+	encode zstd gzip
+
+	# Upload limit slightly above QUOTE_MAX_UPLOAD_MB (multipart overhead).
+	request_body /api/v1/quotes {
+		max_size 30MB
+	}
+
+	handle /api/* {
+		reverse_proxy backend:8000 {
+			header_up X-Request-ID {http.request.uuid}
+		}
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}
