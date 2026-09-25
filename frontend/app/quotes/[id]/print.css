@@ -1,0 +1,244 @@
+/* DIN 5008 (Form B) business letter on A4: 25 mm left margin, address window at 45 mm,
+   information block right of the window, Pflichtangaben per § 35a GmbHG in the footer. */
+.letter-screen {
+  padding: 24px var(--gutter) 64px;
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  max-width: 210mm;
+  margin: 0 auto 16px;
+}
+.lang {
+  display: inline-flex;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.lang button {
+  border: 0;
+  background: var(--sheet);
+  padding: 8px 14px;
+  font-family: var(--font-mono);
+  cursor: pointer;
+}
+.lang button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--sheet);
+}
+
+.letter {
+  --lm: 25mm;
+  --rm: 20mm;
+  position: relative;
+  width: 210mm;
+  max-width: 100%;
+  min-height: 297mm;
+  margin: 0 auto;
+  padding: 12mm var(--rm) 30mm var(--lm);
+  background: #fff;
+  box-shadow: 0 1px 0 var(--rule), 0 12px 32px -18px rgb(22 33 43 / 0.35);
+  font-size: 10.5pt;
+  line-height: 1.45;
+  color: #111;
+}
+.letterhead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 16px;
+  min-height: 27mm;
+  padding-bottom: 4mm;
+  border-bottom: 1.5px solid var(--ink);
+}
+.lh-name {
+  font-stretch: 70%;
+  font-weight: 800;
+  font-size: 20pt;
+  line-height: 1;
+}
+.lh-contact {
+  font-size: 8.5pt;
+  text-align: right;
+  color: var(--ink-2);
+}
+.address-zone {
+  margin-top: 6mm;
+  width: 85mm;
+  min-height: 40mm;
+}
+.return-line {
+  font-size: 7pt;
+  color: var(--ink-2);
+  border-bottom: 0.5px solid var(--rule);
+  padding-bottom: 1mm;
+  margin-bottom: 3mm;
+}
+.recipient {
+  font-size: 10.5pt;
+}
+.info-block {
+  position: absolute;
+  top: calc(12mm + 27mm + 10mm);
+  right: var(--rm);
+  width: 75mm;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 1mm 4mm;
+  margin: 0;
+  font-size: 9pt;
+}
+.info-block dt {
+  color: var(--ink-2);
+}
+.info-block dd {
+  margin: 0;
+  text-align: right;
+}
+.subject {
+  margin: 8mm 0 4mm;
+  font-size: 12pt;
+  font-weight: 700;
+  font-stretch: 90%;
+}
+.banner {
+  padding: 2mm 3mm;
+  border-left: 3px solid currentColor;
+  font-weight: 650;
+}
+.banner.review,
+.tone.review {
+  color: var(--review);
+}
+.banner.no,
+.tone.no {
+  color: var(--no);
+}
+.tone.ok {
+  color: var(--ok);
+}
+.tone {
+  font-weight: 700;
+}
+.letter h2 {
+  margin: 6mm 0 2mm;
+  font-size: 10.5pt;
+  font-weight: 700;
+}
+.positions,
+.totals {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 4mm 0;
+}
+.positions th,
+.positions td {
+  padding: 2mm 2mm;
+  vertical-align: top;
+  text-align: left;
+  border-bottom: 0.5px solid var(--rule);
+}
+.positions thead th {
+  font-size: 8.5pt;
+  font-weight: 650;
+  color: var(--ink-2);
+  border-bottom: 1px solid var(--ink);
+}
+.num {
+  text-align: right !important;
+  white-space: nowrap;
+}
+.pos-meta {
+  margin-top: 1mm;
+  font-size: 8.5pt;
+  color: var(--ink-2);
+}
+.totals {
+  width: 80mm;
+  margin-left: auto;
+}
+.totals th {
+  text-align: left;
+  font-weight: 450;
+  padding: 1mm 0;
+}
+.totals td {
+  text-align: right;
+  padding: 1mm 0;
+}
+.totals .grand th,
+.totals .grand td {
+  font-weight: 750;
+  border-top: 1px solid var(--ink);
+  padding-top: 2mm;
+}
+.review {
+  font-size: 9.5pt;
+}
+.terms {
+  margin: 0;
+  padding-left: 5mm;
+  font-size: 8.5pt;
+  color: #222;
+}
+.terms li {
+  margin-bottom: 1.2mm;
+}
+.closing {
+  margin-top: 8mm;
+}
+.letter-footer {
+  position: absolute;
+  left: var(--lm);
+  right: var(--rm);
+  bottom: 10mm;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6mm;
+  padding-top: 2mm;
+  border-top: 0.5px solid var(--rule);
+  font-size: 7pt;
+  color: var(--ink-2);
+}
+
+@media (max-width: 760px) {
+  .letter {
+    padding: 8mm 6mm 40mm;
+    min-height: auto;
+  }
+  .info-block {
+    position: static;
+    width: 100%;
+    margin-bottom: 4mm;
+  }
+  .letter-footer {
+    left: 6mm;
+    right: 6mm;
+    grid-template-columns: 1fr;
+    gap: 2mm;
+  }
+}
+
+@page {
+  size: A4;
+  margin: 0;
+}
+@media print {
+  body {
+    background: #fff;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .letter-screen {
+    padding: 0;
+  }
+  .letter {
+    box-shadow: none;
+    width: 210mm;
+    min-height: 297mm;
+  }
+}
