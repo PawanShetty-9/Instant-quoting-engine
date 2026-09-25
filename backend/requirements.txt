@@ -1,0 +1,10 @@
+# Runtime dependencies (pinned; update deliberately and re-run the test suite)
+anthropic==1.8.0
+cadquery-ocp==8.0.1.0.0
+fastapi==0.141.1
+uvicorn[standard]==0.54.0
+pydantic==2.13.5
+pydantic-settings==2.15.0
+python-multipart==0.0.32
+numpy==2.5.3
+tzdata==2026.4

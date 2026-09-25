@@ -1,0 +1,32 @@
+{
+  "cad_metadata": {
+    "bounding_box": [
+      120.0,
+      80.0,
+      25.0
+    ],
+    "volume_cm3": 203.18,
+    "surface_area_cm2": 331.7,
+    "features": {
+      "holes": 6,
+      "threads": 2,
+      "pockets": 2,
+      "complex_curves": 0
+    },
+    "requested_material": "Aluminium EN AW-6082 T6"
+  },
+  "factory_status": {
+    "machine_availability": {
+      "CNC_5_Axis": true,
+      "CNC_3_Axis": true,
+      "Lathe": true
+    },
+    "current_backlog_days": 3
+  },
+  "cost_vectors": {
+    "material_per_kg": 7.5,
+    "machine_hourly_rate": 85.0,
+    "energy_surcharge_percent": 4.0,
+    "target_margin_percent": 15.0
+  }
+}

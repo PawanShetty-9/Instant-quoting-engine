@@ -1,0 +1,16 @@
+{
+  "quote_id": "AQ-20260925-EXAMPLE001",
+  "feasibility": "Feasible",
+  "feasibility_notes": "DE: Verfahren 3-Achs-Vertikal-Bearbeitungszentrum (CNC_3_Axis): prismatisches Frästeil. 1 Aufspannung(en), Zyklus Erstteil 84 min. Keine Fertigungsrisiken erkannt. | EN: Process 3-axis vertical machining centre (CNC_3_Axis): prismatic milled part. 1 set-up(s), first-article cycle 84 min. No manufacturability risks detected.",
+  "selected_process": "CNC_3_Axis",
+  "estimated_production_time_hours": 2.15,
+  "cost_breakdown": {
+    "material_cost_eur": 4.11,
+    "machining_cost_eur": 182.75,
+    "energy_surcharge_eur": 7.47,
+    "net_total_eur": 223.48,
+    "vat_19_eur": 42.46,
+    "gross_total_eur": 265.94
+  },
+  "recommended_lead_time_days": 6
+}
