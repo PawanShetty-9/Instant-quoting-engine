@@ -54,7 +54,17 @@ class SlidingWindowRateLimiter:
 
 
 def client_ip(request: Request) -> str:
-    # uvicorn --proxy-headers --forwarded-allow-ips resolves X-Forwarded-For safely.
+    """Caller's IP for rate limits and guest quotas.
+
+    Behind N reverse proxies (QUOTE_TRUSTED_PROXY_HOPS), the real client is the N-th
+    X-Forwarded-For entry from the right: every proxy appends what it saw, so entries
+    further left are client-supplied and could be forged to dodge limits.
+    """
+    hops = request.app.state.settings.trusted_proxy_hops
+    if hops > 0:
+        chain = [h.strip() for h in request.headers.get("x-forwarded-for", "").split(",") if h.strip()]
+        if len(chain) >= hops:
+            return chain[-hops]
     return request.client.host if request.client else "unknown"
 
 

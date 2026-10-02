@@ -12,7 +12,9 @@ from fastapi.responses import JSONResponse
 
 from app import __version__
 from app.ai.claude import ClaudeQuoteEngine
+from app.api.account_routes import router as account_router
 from app.api.routes import router
+from app.billing.stripe_client import StripeClient
 from app.config import Settings, get_settings
 from app.engine.quote import QuoteEngine
 from app.security import SecurityHeadersMiddleware, SlidingWindowRateLimiter
@@ -21,7 +23,11 @@ from app.storage import Store
 log = logging.getLogger("quote")
 
 
-def create_app(settings: Settings | None = None, ai_engine: ClaudeQuoteEngine | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    ai_engine: ClaudeQuoteEngine | None = None,
+    stripe: StripeClient | None = None,
+) -> FastAPI:
     settings = settings or get_settings()
     logging.basicConfig(level=settings.log_level, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
@@ -32,10 +38,16 @@ def create_app(settings: Settings | None = None, ai_engine: ClaudeQuoteEngine | 
         ai = ai_engine
         if ai is None and settings.ai_enabled:
             ai = ClaudeQuoteEngine(settings)
+        app.state.settings = settings
         app.state.store = store
         app.state.engine = QuoteEngine(settings, ai)
         app.state.rate_limiter = SlidingWindowRateLimiter(settings.rate_limit_per_window, settings.rate_limit_window_s)
         app.state.parse_semaphore = asyncio.Semaphore(settings.max_concurrent_parses)
+        app.state.stripe = stripe or StripeClient(settings)
+        if settings.environment == "production" and settings.company_vat_id == "DE000000000":
+            log.warning("company master data are still placeholders - set QUOTE_COMPANY_* before selling")
+        if settings.billing_demo_active:
+            log.warning("billing demo mode: paid plans unlock without payment (set QUOTE_STRIPE_SECRET_KEY)")
         log.info(
             "quoting engine ready (engine=%s, model=%s, purged=%d expired quotes)",
             "claude" if ai else "rules",
@@ -60,11 +72,12 @@ def create_app(settings: Settings | None = None, ai_engine: ClaudeQuoteEngine | 
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_methods=["GET", "POST", "PUT"],
-        allow_headers=["Content-Type", "X-API-Key", "X-Request-ID"],
+        allow_headers=["Authorization", "Content-Type", "X-API-Key", "X-Request-ID"],
         expose_headers=["X-Request-ID", "X-Quote-Engine"],
         max_age=600,
     )
     app.include_router(router)
+    app.include_router(account_router)
     # Routes and auth resolve settings through this dependency; bind it to this app's instance.
     app.dependency_overrides[get_settings] = lambda: settings
 

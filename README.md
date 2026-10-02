@@ -19,12 +19,36 @@ cent-exactly, and has Claude review the result like a senior estimator (*Kalkula
 | | |
 |---|---|
 | **CAD analysis** | STEP / IGES / STL → volume, area, bounding box, holes, threads (ISO 261 tap drills), pockets, free-form surfaces, turnability, machining directions, smallest hole/radius, hole L/D |
-| **Machine selection** | Free-form or multi-sided → `CNC_5_Axis`, rotational → `Lathe`, prismatic → `CNC_3_Axis`, with work-envelope checks. A busy machine gives *Capacity Delay* +5 business days |
-| **Costing** | Set-up 45 min, removal from stock at material-specific rates, finishing by surface area, feature penalties (5/5/15/30 min), batch amortisation, energy surcharge, margin, **19 % MwSt**, all to the cent |
+| **Machine selection** | Free-form or multi-sided → `CNC_5_Axis`, rotational → `Lathe`, prismatic → `CNC_3_Axis`, with work-envelope checks. A busy machine re-routes to a free capable one (lathe → mill, 3-axis → 5-axis); only without a substitute does *Capacity Delay* add 5 business days |
+| **Costing** | Material on the raw stock blank, set-up 45 min, removal from stock at material-specific rates, finishing by surface area, feature penalties (5/5/15/30 min), batch amortisation, energy surcharge, margin, **19 % MwSt**, all to the cent |
 | **AI review** | Claude (`claude-opus-5`, structured outputs) chooses among pre-computed options, escalates risks and writes bilingual *Prüfhinweise*. A guardrail re-derives every euro, so a model can never invent a price |
 | **German compliance** | Freibleibend offer, ISO 2768-mK, EN 10204, Incoterms® 2020 FCA, § 377 HGB, DSGVO/GeschGehG, printable **DIN 5008** letter with the **§ 35a GmbHG** company details |
 | **Shop integration** | `PUT /api/v1/factory` takes machine availability, backlog, rates and material prices from your MES/ERP (e.g. the [Industrie 4.0 telemetry gateway](https://github.com/PawanShetty-9/industrie40-telemetry-gateway)). `POST /api/v1/engine/evaluate` exposes the raw engine contract |
-| **Production-ready** | Sandboxed CAD parsing, rate limiting, API keys, security headers, non-root read-only containers, auto-HTTPS (Caddy), CI, GHCR images, 64 tests |
+| **Production-ready** | Sandboxed CAD parsing, rate limiting, accounts with scrypt-hashed passwords, API keys, security headers, non-root read-only containers, auto-HTTPS (Caddy), CI, GHCR images, 84 tests |
+
+## Product: web app, plans and payments
+
+| Page | What it does |
+|---|---|
+| `/` | Landing page with an interactive 3D part (rotate, switch material, toggle feature detection), features and pricing |
+| `/quote` | The quoting portal: upload, 3D preview, quote sheet, usage meter |
+| `/pricing` | Free, Pro and Business plans with FAQ |
+| `/signup`, `/login`, `/account` | Accounts, plan and usage, Stripe billing portal, quote history (Pro), API key (Business) |
+| `/quotes/{id}` | Printable DIN 5008 quote (Pro and Business) |
+| `/impressum` | Impressum, privacy and terms from the `QUOTE_COMPANY_*` data |
+
+| | Guest | Free | Pro (49 €/month) | Business (199 €/month) |
+|---|---|---|---|---|
+| Quotes per month | 3 | 10 | 200 | unlimited |
+| Max. pieces per quote | 25 | 25 | 10,000 | 10,000 |
+| Instant price, lead time, 3D viewer | ✓ | ✓ | ✓ | ✓ |
+| Full breakdown, AI review, PDF quote, history | | | ✓ | ✓ |
+| API key for ERP/MES | | | | ✓ |
+
+All of this is defined in one file, [`backend/app/billing/plans.py`](backend/app/billing/plans.py), and
+enforced by the API. Payments run through Stripe Checkout (test mode first, see
+[DEPLOYMENT.md](docs/DEPLOYMENT.md#payments-stripe)). Without Stripe keys, development instances
+unlock paid plans without payment so the flow can be tried locally. Prices are launch placeholders.
 
 ## Quick start
 
@@ -44,7 +68,7 @@ cd backend
 python3.12 -m venv .venv && . .venv/bin/activate
 pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --port 8000          # http://localhost:8000/docs
-pytest                                             # 64 tests: parser, rules, costing, AI guardrail, API
+pytest                                             # 84 tests: parser, rules, costing, AI guardrail, API, plans & billing
 
 # Frontend (Node 22)
 cd frontend

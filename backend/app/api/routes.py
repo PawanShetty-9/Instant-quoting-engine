@@ -13,6 +13,8 @@ from zoneinfo import ZoneInfo
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 
+from app.accounts import Viewer, current_viewer, require_engine_access
+from app.billing.plans import Feature
 from app.cad.brep import CadParseError
 from app.cad.parser import ALLOWED_EXTENSIONS, CadTimeoutError, parse_cad_bytes
 from app.catalog.machines import MACHINES, Process
@@ -26,6 +28,7 @@ from app.schemas import (
     CostVectors,
     EngineInput,
     EngineQuote,
+    Entitlements,
     FactoryState,
     FactoryStateUpdate,
     Features,
@@ -135,6 +138,7 @@ async def create_quote(
     settings: Settings = Depends(get_settings),
     store: Store = Depends(get_store),
     engine: QuoteEngine = Depends(get_engine),
+    viewer: Viewer = Depends(current_viewer),
 ) -> QuoteResponse:
     retry_after = request.app.state.rate_limiter.check(client_ip(request))
     if retry_after is not None:
@@ -143,6 +147,41 @@ async def create_quote(
         )
     if material not in MATERIALS:
         raise HTTPException(HTTP_422, f"unknown material '{material}'")
+    plan = viewer.plan
+    if quantity > plan.max_quantity:
+        raise HTTPException(
+            status.HTTP_402_PAYMENT_REQUIRED,
+            f"the {plan.name} plan quotes up to {plan.max_quantity} pieces - upgrade for series quantities",
+        )
+    if not store.consume_quote(viewer.subject, plan.quotes_per_month):
+        raise HTTPException(
+            status.HTTP_402_PAYMENT_REQUIRED,
+            f"monthly limit of {plan.quotes_per_month} quotes reached on the {plan.name} plan"
+            + (" - create a free account for more" if viewer.is_guest else " - upgrade for more"),
+        )
+    try:
+        return await _price_upload(
+            request, file, material, quantity, thread_count, units, customer_reference, settings, store, engine, viewer
+        )
+    except BaseException:
+        store.refund_quote(viewer.subject)  # failed quotes do not count against the plan
+        raise
+
+
+async def _price_upload(
+    request: Request,
+    file: UploadFile,
+    material: str,
+    quantity: int,
+    thread_count: int | None,
+    units: str,
+    customer_reference: str | None,
+    settings: Settings,
+    store: Store,
+    engine: QuoteEngine,
+    viewer: Viewer,
+) -> QuoteResponse:
+    plan = viewer.plan
     max_bytes = int(settings.max_upload_mb * 1024 * 1024)
     declared = request.headers.get("content-length")
     if declared and declared.isdigit() and int(declared) > max_bytes + 64 * 1024:
@@ -206,7 +245,7 @@ async def create_quote(
     now = datetime.now(BERLIN)
     quote_id = new_quote_id(now)
     try:
-        result = await engine.evaluate(engine_input, quote_id)
+        result = await engine.evaluate(engine_input, quote_id, ai_allowed=plan.has(Feature.AI_REVIEW))
     except AIRequiredError as exc:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "AI quoting engine unavailable") from exc
 
@@ -230,8 +269,10 @@ async def create_quote(
             terms_en=terms_en,
         ),
         has_preview=parsed.preview_stl is not None,
+        entitlements=Entitlements(plan=plan.key, features=sorted(f.value for f in plan.features)),
     )
-    await asyncio.to_thread(store.save_quote, response, sha256, parsed.preview_stl)
+    account_id = viewer.account.id if viewer.account else None
+    await asyncio.to_thread(store.save_quote, response, sha256, parsed.preview_stl, account_id)
     log.info(
         "quote %s created: %s %s net=%.2f engine=%s",
         quote_id,
@@ -240,7 +281,17 @@ async def create_quote(
         net,
         result.analysis.engine,
     )
-    return response
+    return redact(response)
+
+
+def redact(response: QuoteResponse) -> QuoteResponse:
+    """Strip what the quote's plan does not include. The full record stays in the audit trail."""
+    if Feature.COST_BREAKDOWN.value in response.entitlements.features:
+        return response
+    analysis = response.analysis.model_copy(
+        update={"candidates": [], "time_breakdown": None, "material": None, "margin_eur": 0.0, "validation": []}
+    )
+    return response.model_copy(update={"analysis": analysis})
 
 
 def _valid_id(quote_id: str) -> str:
@@ -254,7 +305,7 @@ async def get_quote(quote_id: str, store: Store = Depends(get_store)) -> QuoteRe
     quote = await asyncio.to_thread(store.get_quote, _valid_id(quote_id))
     if quote is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "quote not found")
-    return quote
+    return redact(quote)
 
 
 @router.get(
@@ -274,7 +325,7 @@ async def get_preview(quote_id: str, store: Store = Depends(get_store)) -> Respo
 @router.post(
     "/engine/evaluate",
     response_model=EngineQuote,
-    dependencies=[Depends(require_api_key)],
+    dependencies=[Depends(require_engine_access)],
     summary="Core engine: cad_metadata + factory_status + cost_vectors -> quote JSON",
 )
 async def evaluate(body: EngineInput, response: Response, engine: QuoteEngine = Depends(get_engine)) -> EngineQuote:

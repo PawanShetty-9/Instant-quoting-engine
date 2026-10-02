@@ -17,7 +17,9 @@ values (September 2026). They make the product usable on day one. They do not re
 Rule 1  process      = CNC_5_Axis  if complex_curves > 0 or multi-sided (>= 3 access directions / inclined features)
                      = Lathe       if rotationally symmetric (>= 85 % of surface coaxial)
                      = CNC_3_Axis  otherwise
-        availability = false  ->  "Capacity Delay", lead time + 5 business days
+        availability = false  ->  re-route to a free capable machine if it delivers sooner
+                                  (Lathe -> 3-axis -> 5-axis; a 5-axis job has no substitute),
+                                  otherwise "Capacity Delay", lead time + 5 business days
 
 Rule 2  t_setup      = 45 min + 20 min x (extra set-ups)
         t_rough      = (V_stock - V_part) / (MRR_material x f_machine)
@@ -121,11 +123,12 @@ seconds, not minutes.
 
 ## 5. Material basis: part vs. raw stock
 
-The contract formula prices the **finished-part mass** (`QUOTE_MATERIAL_BASIS=part`, the default).
-A real shop buys the **raw blank** (bounding box + 3 mm per side, or bar Ø + 4 mm × length + 5 mm).
-On a pocketed part the difference can be 2–5×. For production we recommend
-`QUOTE_MATERIAL_BASIS=stock`. The analysis block always reports both masses and the buy-to-fly
-ratio.
+A real shop buys the **raw blank** (bounding box + 3 mm per side, or bar Ø + 4 mm × length + 5 mm),
+so material is priced on the blank by default (`QUOTE_MATERIAL_BASIS=stock`). On a pocketed part or
+a titanium blade the difference to the finished part can be 2–5× (the titanium sample blade was
+about 78 EUR net too cheap on the old basis). The original contract formula on **finished-part
+mass** is still available with `QUOTE_MATERIAL_BASIS=part`. The analysis block always reports both
+masses and the buy-to-fly ratio.
 
 ## 6. Energy surcharge
 

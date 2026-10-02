@@ -22,8 +22,18 @@ services:
         generateValue: true
       - key: QUOTE_CORS_ORIGINS
         value: '["https://quote-frontend.onrender.com"]'
-      - key: FORWARDED_ALLOW_IPS
-        value: "*"
+      # Render's proxy appends the real client IP as the last X-Forwarded-For entry;
+      # the app reads exactly that one so clients cannot forge their IP to dodge quotas.
+      - key: QUOTE_TRUSTED_PROXY_HOPS
+        value: "1"
+      - key: QUOTE_PUBLIC_APP_URL
+        value: https://quote-frontend.onrender.com
+      # Stripe (test mode first: sk_test_... / whsec_...). Webhook endpoint:
+      #   https://quote-backend.onrender.com/api/v1/billing/webhook
+      - key: QUOTE_STRIPE_SECRET_KEY
+        sync: false
+      - key: QUOTE_STRIPE_WEBHOOK_SECRET
+        sync: false
       - key: WEB_CONCURRENCY
         value: "2"
 

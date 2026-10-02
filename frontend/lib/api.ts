@@ -127,6 +127,7 @@ export interface QuoteResponse {
     terms_en: string[];
   };
   has_preview: boolean;
+  entitlements: { plan: PlanKey; features: FeatureKey[] };
 }
 
 export interface MaterialOption {
@@ -150,6 +151,90 @@ export interface Capabilities {
   supplier: Supplier;
 }
 
+// ---- plans & accounts --------------------------------------------------------------
+export type PlanKey = "guest" | "free" | "pro" | "business";
+export type FeatureKey =
+  | "instant_price"
+  | "viewer_3d"
+  | "cost_breakdown"
+  | "ai_review"
+  | "printable_quote"
+  | "quote_history"
+  | "api_access";
+
+export interface Plan {
+  key: PlanKey;
+  name: string;
+  tagline_de: string;
+  tagline_en: string;
+  price_eur_month: number;
+  quotes_per_month: number | null;
+  max_quantity: number;
+  features: FeatureKey[];
+  purchasable: boolean;
+}
+
+export interface PlanCatalog {
+  currency: "EUR";
+  vat_note: string;
+  features: { key: FeatureKey; de: string; en: string }[];
+  plans: Plan[];
+  checkout: "stripe" | "demo" | "disabled";
+}
+
+export interface Usage {
+  quotes_this_month: number;
+  quotes_per_month: number | null;
+}
+
+export interface Account {
+  id: string;
+  email: string;
+  company: string | null;
+  created_at: string;
+  plan: Plan;
+  usage: Usage;
+  has_api_key: boolean;
+  has_billing: boolean;
+}
+
+export interface Me {
+  account: Account | null;
+  plan: Plan;
+  usage: Usage;
+}
+
+export interface QuoteSummary {
+  quote_id: string;
+  created_at: string;
+  feasibility: Feasibility;
+  net_total_eur: number;
+  file_name: string | null;
+  selected_process: ProcessKey;
+  quantity: number;
+}
+
+// ---- transport -------------------------------------------------------------------
+const TOKEN_KEY = "iqe.session";
+
+/** Session token from sign-in; kept in localStorage (wrapped: storage can be blocked). */
+export function getToken(): string | null {
+  try {
+    return window.localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setToken(token: string | null): void {
+  try {
+    if (token) window.localStorage.setItem(TOKEN_KEY, token);
+    else window.localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* private mode: session lasts for this page only */
+  }
+}
+
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -160,9 +245,12 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  const token = typeof window === "undefined" ? null : getToken();
+  if (token) headers.set("Authorization", `Bearer ${token}`);
   let res: Response;
   try {
-    res = await fetch(`${API_BASE}${path}`, { ...init, cache: "no-store" });
+    res = await fetch(`${API_BASE}${path}`, { ...init, headers, cache: "no-store" });
   } catch {
     throw new ApiError("Der Kalkulationsdienst ist nicht erreichbar. Prüfen Sie Ihre Verbindung.", 0);
   }
@@ -174,10 +262,19 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       /* keep statusText */
     }
+    if (res.status === 401 && token) setToken(null); // expired session: fall back to guest
     throw new ApiError(detail, res.status);
   }
+  if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
 }
+
+const postJson = <T>(path: string, body?: unknown) =>
+  request<T>(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
 
 export const getMaterials = () => request<MaterialOption[]>("/api/v1/materials");
 export const getCapabilities = () => request<Capabilities>("/api/v1/capabilities");
@@ -187,3 +284,18 @@ export const previewUrl = (id: string) => `${API_BASE}/api/v1/quotes/${encodeURI
 export function createQuote(form: FormData): Promise<QuoteResponse> {
   return request<QuoteResponse>("/api/v1/quotes", { method: "POST", body: form });
 }
+
+export const getPlans = () => request<PlanCatalog>("/api/v1/plans");
+export const getMe = () => request<Me>("/api/v1/me");
+export const getQuoteHistory = () => request<QuoteSummary[]>("/api/v1/account/quotes");
+
+type Session = { token: string; account: Account };
+export const signUp = (email: string, password: string, company?: string) =>
+  postJson<Session>("/api/v1/auth/signup", { email, password, company: company || null });
+export const signIn = (email: string, password: string) => postJson<Session>("/api/v1/auth/login", { email, password });
+export const signOut = () => postJson<void>("/api/v1/auth/logout");
+
+export const startCheckout = (plan: PlanKey) =>
+  postJson<{ url: string; mode: "stripe" | "demo" }>("/api/v1/billing/checkout", { plan });
+export const openBillingPortal = () => postJson<{ url: string }>("/api/v1/billing/portal");
+export const rotateApiKey = () => postJson<{ api_key: string; note: string }>("/api/v1/account/api-key");

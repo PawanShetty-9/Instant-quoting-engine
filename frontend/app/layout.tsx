@@ -3,11 +3,14 @@ import type { Metadata, Viewport } from "next";
 import "@fontsource-variable/archivo/wdth.css";
 import "@fontsource/b612-mono/400.css";
 import "./globals.css";
+import "./site.css";
+import SiteFooter from "@/components/SiteFooter";
+import { SessionProvider } from "@/lib/session";
 
 export const metadata: Metadata = {
-  title: "Sofortangebot CNC",
-  description: "STEP-Datei hochladen und in Sekunden ein Angebot für CNC-Fräs- und Drehteile erhalten.",
-  robots: { index: false },
+  title: { default: "Sofortangebot CNC – Instant quotes for CNC parts", template: "%s · Sofortangebot CNC" },
+  description:
+    "STEP-Datei hochladen und in Sekunden ein Angebot für CNC-Fräs- und Drehteile erhalten – mit Lieferzeit, MwSt und 3D-Ansicht.",
 };
 
 export const viewport: Viewport = {
@@ -19,7 +22,12 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="de">
-      <body>{children}</body>
+      <body>
+        <SessionProvider>
+          {children}
+          <SiteFooter />
+        </SessionProvider>
+      </body>
     </html>
   );
 }

@@ -36,8 +36,28 @@ def settings(tmp_path) -> Settings:
     )
 
 
+def sign_in(client: TestClient, plan: str = "business", email: str = "buyer@example.com") -> dict:
+    """Create an account on ``plan`` and send its session token on every later request."""
+    r = client.post("/api/v1/auth/signup", json={"email": email, "password": "correct horse battery"})
+    assert r.status_code == 201, r.text
+    body = r.json()
+    if plan != "free":
+        client.app.state.store.update_account(body["account"]["id"], plan=plan)
+    client.headers["Authorization"] = f"Bearer {body['token']}"
+    return body
+
+
 @pytest.fixture
 def client(settings):
+    """A signed-in Business customer: every feature unlocked, no quota."""
+    with TestClient(create_app(settings)) as c:
+        sign_in(c)
+        yield c
+
+
+@pytest.fixture
+def guest(settings):
+    """An anonymous visitor on the guest plan."""
     with TestClient(create_app(settings)) as c:
         yield c
 

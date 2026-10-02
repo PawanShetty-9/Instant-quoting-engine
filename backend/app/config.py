@@ -19,6 +19,19 @@ class Settings(BaseSettings):
     database_path: str = "./data/quotes.sqlite3"
     quote_retention_days: int = Field(default=90, ge=1)
     admin_api_key: SecretStr | None = None
+    # Reverse proxies in front of the API that append to X-Forwarded-For (Caddy, Render: 1).
+    trusted_proxy_hops: int = Field(default=0, ge=0, le=5)
+
+    # --- accounts & billing ------------------------------------------------------
+    # Public URL of the web app; Stripe redirects back here after checkout.
+    public_app_url: str = "http://localhost:3000"
+    session_ttl_days: int = Field(default=30, ge=1)
+    stripe_secret_key: SecretStr | None = None  # sk_test_... for test mode
+    stripe_webhook_secret: SecretStr | None = None  # whsec_...
+    stripe_automatic_tax: bool = False
+    # Without Stripe keys, upgrade instantly on "checkout" so the paid flow can be tried
+    # locally. Never active in production.
+    billing_demo_mode: bool = True
 
     # --- upload hardening ----------------------------------------------------------
     max_upload_mb: float = Field(default=25.0, gt=0)
@@ -50,8 +63,9 @@ class Settings(BaseSettings):
     stock_allowance_mill_mm: float = 3.0
     stock_allowance_lathe_diameter_mm: float = 4.0
     stock_allowance_lathe_length_mm: float = 5.0
-    # "part" = spec formula (finished-part volume); "stock" = raw blank incl. allowance.
-    material_basis: Literal["part", "stock"] = "part"
+    # "stock" = raw blank incl. allowance (what the shop actually buys and pays for);
+    # "part" = original contract formula on finished-part volume (underprices pockets/blades).
+    material_basis: Literal["part", "stock"] = "stock"
     # "markup" = Gewinnzuschlag on cost; "margin" = share of the net price.
     margin_mode: Literal["markup", "margin"] = "markup"
     vat_rate_percent: float = 19.0
@@ -80,13 +94,17 @@ class Settings(BaseSettings):
     company_register: str = "Amtsgericht Braunschweig HRB 000000"
     company_managing_director: str = "Max Mustermann"
 
-    @field_validator("anthropic_api_key", "admin_api_key", mode="before")
+    @field_validator("anthropic_api_key", "admin_api_key", "stripe_secret_key", "stripe_webhook_secret", mode="before")
     @classmethod
     def _blank_secret_is_unset(cls, v: object) -> object:
         # `ANTHROPIC_API_KEY=` in an env file means "not configured", not "empty key".
         if v is None or (isinstance(v, str) and not v.strip()):
             return None
         return v
+
+    @property
+    def billing_demo_active(self) -> bool:
+        return self.billing_demo_mode and self.environment != "production" and self.stripe_secret_key is None
 
     @property
     def ai_enabled(self) -> bool:

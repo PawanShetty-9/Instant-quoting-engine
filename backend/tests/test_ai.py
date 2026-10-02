@@ -14,7 +14,7 @@ from app.config import Settings
 from app.engine.quote import AIRequiredError, QuoteEngine
 from app.main import create_app
 from app.schemas import EngineInput
-from tests.conftest import echo_reference, fake_ai, manual_input
+from tests.conftest import echo_reference, fake_ai, manual_input, sign_in
 
 QID = "AQ-20260101-TEST000000"
 
@@ -106,7 +106,7 @@ def test_ai_reroute_to_non_fitting_machine_is_rejected():
 
 def test_capacity_delay_notice_enforced():
     body = manual_input()
-    body["factory_status"]["machine_availability"]["CNC_3_Axis"] = False
+    body["factory_status"]["machine_availability"].update(CNC_3_Axis=False, CNC_5_Axis=False)
     result, _ = evaluate(echo_reference, body=body)
     assert "Capacity Delay" in result.quote.feasibility_notes
 
@@ -138,6 +138,7 @@ def test_upload_uses_ai_and_hides_file_identity(tmp_path, samples):
     s = Settings(environment="test", database_path=str(tmp_path / "q.db"), ai_mode="auto", rate_limit_per_window=100)
     ai, calls = fake_ai(s, echo_reference)
     with TestClient(create_app(s, ai_engine=ai)) as c, open(samples["bracket"], "rb") as fh:
+        sign_in(c, plan="pro")
         r = c.post(
             "/api/v1/quotes",
             files={"file": ("secret-customer-part.step", fh)},
@@ -161,3 +162,12 @@ def test_unexpected_client_error_falls_back_to_rules():
     result, _ = evaluate(lambda p: TypeError("Could not resolve authentication method"))
     assert result.analysis.engine == "rules"
     assert any("TypeError" in v for v in result.analysis.validation)
+
+
+def test_capacity_reroute_is_not_escalated_as_ai_override():
+    body = manual_input()
+    body["factory_status"]["machine_availability"]["CNC_3_Axis"] = False
+    result, _ = evaluate(echo_reference, body=body)
+    assert result.quote.selected_process == "CNC_5_Axis"
+    assert result.quote.feasibility == "Feasible"
+    assert "CAPACITY_REROUTE" in result.analysis.flags

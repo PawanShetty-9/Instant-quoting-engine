@@ -1,144 +1,138 @@
-"use client";
+import type { Metadata } from "next";
+import Link from "next/link";
+import PricingTable from "@/components/PricingTable";
+import SiteHeader from "@/components/SiteHeader";
+import HeroPartLoader from "@/components/HeroPartLoader";
 
-import { useEffect, useRef, useState } from "react";
-import QuoteSheet, { EmptySheet } from "@/components/QuoteSheet";
-import UploadPanel, { type QuoteRequest } from "@/components/UploadPanel";
-import {
-  ApiError,
-  createQuote,
-  getCapabilities,
-  getMaterials,
-  type Capabilities,
-  type MaterialOption,
-  type QuoteResponse,
-} from "@/lib/api";
-import { PROCESS_LABEL } from "@/lib/format";
+export const metadata: Metadata = {
+  title: { absolute: "Sofortangebot CNC – Angebot für Frästeile und Drehteile in Sekunden" },
+};
 
-function BrandMark() {
-  // A part outline in a drawing frame corner - the portal's mark.
-  return (
-    <svg className="brand-mark" viewBox="0 0 28 28" fill="none" aria-hidden>
-      <rect x="1" y="1" width="26" height="26" rx="3" stroke="var(--ink)" strokeWidth="1.5" />
-      <path d="M7 19V9h8l6 5v5z" stroke="var(--blue)" strokeWidth="1.8" strokeLinejoin="round" />
-      <circle cx="11.5" cy="14" r="1.8" fill="var(--blue)" />
-    </svg>
-  );
-}
+const STEPS = [
+  {
+    n: "01",
+    de: "STEP-Datei hochladen",
+    en: "Upload STEP, IGES or STL",
+    text: "Ziehen Sie Ihr 3D-Modell auf die Seite. Die Datei bleibt auf unserem Server in Deutschland.",
+  },
+  {
+    n: "02",
+    de: "Geometrie wird analysiert",
+    en: "Features & machine",
+    text: "Bohrungen, Gewinde, Taschen und Freiformflächen werden erkannt, die passende Maschine gewählt.",
+  },
+  {
+    n: "03",
+    de: "Preis & Lieferzeit",
+    en: "Price & lead time",
+    text: "Netto, 19 % MwSt und brutto centgenau – mit Lieferzeit aus der aktuellen Maschinenauslastung.",
+  },
+];
 
-export default function Home() {
-  const [materials, setMaterials] = useState<MaterialOption[]>([]);
-  const [caps, setCaps] = useState<Capabilities | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<QuoteResponse | null>(null);
-  const [error, setError] = useState<{ title: string; detail: string } | null>(null);
-  const sheetRef = useRef<HTMLDivElement>(null);
+const FEATURES = [
+  {
+    de: "Echte CAD-Analyse",
+    text: "OpenCascade-Kernel wie in professionellen CAM-Systemen: Volumen, Rohteil, Bearbeitungsrichtungen, Lochtiefen.",
+  },
+  {
+    de: "Live-Kapazität",
+    text: "Ist eine Maschine ausgelastet, plant das System auf eine freie, geeignete Maschine um – statt pauschal Tage aufzuschlagen.",
+  },
+  {
+    de: "Rohteil statt Fertigteil",
+    text: "Material wird auf den gekauften Rohling gerechnet. Kein Unterpreis bei Titan-Schaufeln oder Taschenteilen.",
+  },
+  {
+    de: "KI-Prüfung mit Leitplanken",
+    text: "Claude prüft wie ein erfahrener Kalkulator. Jeder Euro wird vom deterministischen Rechenkern verifiziert.",
+  },
+  {
+    de: "Rechtssicher in Deutschland",
+    text: "DIN-5008-Angebot, Incoterms® 2020, ISO 2768-mK, § 377 HGB, DSGVO – zweisprachig Deutsch/Englisch.",
+  },
+  {
+    de: "ERP/MES-Schnittstelle",
+    text: "REST-API mit eigenem Schlüssel: Angebote aus dem ERP anfragen, Auslastung aus dem MES einspeisen.",
+  },
+];
 
-  useEffect(() => {
-    getMaterials().then(setMaterials).catch(() => undefined);
-    getCapabilities().then(setCaps).catch(() => undefined);
-  }, []);
-
-  async function run(req: QuoteRequest) {
-    setBusy(true);
-    setError(null);
-    setResult(null);
-    const form = new FormData();
-    form.append("file", req.file);
-    form.append("material", req.material);
-    form.append("quantity", String(req.quantity));
-    form.append("units", req.units);
-    if (req.threadCount !== null) form.append("thread_count", String(req.threadCount));
-    if (req.reference) form.append("customer_reference", req.reference);
-    if (window.matchMedia("(max-width: 1080px)").matches) {
-      sheetRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
-    try {
-      setResult(await createQuote(form));
-    } catch (e) {
-      const err = e as ApiError;
-      const title =
-        err.status === 413
-          ? "Datei zu groß"
-          : err.status === 429
-            ? "Zu viele Anfragen"
-            : err.status === 422
-              ? "Datei konnte nicht kalkuliert werden"
-              : "Kalkulation fehlgeschlagen";
-      const hint =
-        err.status === 422 ? " Exportieren Sie das Bauteil als Volumenkörper im Format STEP AP214 oder AP242." : "";
-      setError({ title, detail: `${err.message}.${hint}` });
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  const category = materials.find((m) => m.key === result?.engine_input.cad_metadata.requested_material)?.category;
-  const supplier = caps?.supplier;
-
+export default function Landing() {
   return (
     <>
-      <header className="topbar">
-        <div className="brand">
-          <BrandMark />
-          <div>
-            {supplier?.name ?? "Lohnfertigung"}
-            <small>Sofortangebot · Instant quote</small>
-          </div>
-        </div>
-        {caps && (
-          <div className="capacity" aria-label="Maschinenverfügbarkeit">
-            {caps.machines.map((m) => (
-              <span key={m.process}>
-                <span className={`dot${m.available ? "" : " off"}`} aria-hidden />
-                {PROCESS_LABEL[m.process].de}
-                {!m.available && " – ausgelastet"}
-              </span>
-            ))}
-            <span>
-              Vorlauf <span className="figure">{caps.current_backlog_days}</span> AT
-            </span>
-          </div>
-        )}
-      </header>
-
+      <SiteHeader />
       <main>
-        <section className="intro">
-          <h1>
-            Angebot für Ihr Frästeil oder Drehteil – <em>direkt aus der STEP-Datei.</em>
-          </h1>
-          <p>
-            Wir erkennen Bohrungen, Gewinde, Taschen und Freiformflächen, wählen die passende Maschine und kalkulieren
-            Preis und Lieferzeit mit unserer aktuellen Auslastung.
-            <span className="en">
-              Upload a STEP file: we recognise features, pick the machine and price it against today&apos;s shop-floor
-              capacity.
-            </span>
-          </p>
+        <section className="hero">
+          <div className="hero-copy">
+            <span className="label">Instant quoting · CNC-Fräsen &amp; Drehen</span>
+            <h1>
+              Vom 3D-Modell zum Angebot – <em>in Sekunden.</em>
+            </h1>
+            <p>
+              Laden Sie eine STEP-Datei hoch und erhalten Sie sofort Preis, Lieferzeit und ein druckfertiges Angebot.
+              Kalkuliert mit echter Geometrie und der aktuellen Auslastung der Fertigung.
+              <span className="en">
+                Upload a STEP file, get a VAT-compliant quote with lead time in seconds – priced from real geometry and
+                live shop-floor capacity.
+              </span>
+            </p>
+            <div className="hero-cta">
+              <Link className="btn" href="/quote">
+                Kostenlos Angebot erstellen
+              </Link>
+              <Link className="btn ghost" href="/pricing">
+                Preise ansehen
+              </Link>
+            </div>
+            <p className="fineprint">Ohne Anmeldung testen · keine Kreditkarte nötig</p>
+          </div>
+          <HeroPartLoader />
         </section>
 
-        <div className="workspace">
-          <UploadPanel materials={materials} capabilities={caps} busy={busy} onSubmit={run} />
-          <div ref={sheetRef} style={{ minWidth: 0, scrollMarginTop: 16 }}>
-            {error && (
-              <div className="error" role="alert" style={{ marginBottom: 16 }}>
-                <strong>{error.title}</strong>
-                {error.detail}
+        <section className="band" aria-labelledby="how">
+          <h2 id="how" className="section-title">
+            So funktioniert&apos;s <span className="en">How it works</span>
+          </h2>
+          <ol className="steps">
+            {STEPS.map((s) => (
+              <li key={s.n}>
+                <span className="step-n figure">{s.n}</span>
+                <h3>
+                  {s.de}
+                  <span className="en">{s.en}</span>
+                </h3>
+                <p>{s.text}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="band" id="features" aria-labelledby="features-title">
+          <h2 id="features-title" className="section-title">
+            Funktionen <span className="en">Features</span>
+          </h2>
+          <div className="feature-grid">
+            {FEATURES.map((f) => (
+              <div key={f.de} className="card">
+                <h3>{f.de}</h3>
+                <p>{f.text}</p>
               </div>
-            )}
-            {result ? (
-              <QuoteSheet
-                data={result}
-                materialCategory={category}
-                onReset={() => {
-                  setResult(null);
-                  window.scrollTo({ top: 0, behavior: "smooth" });
-                }}
-              />
-            ) : (
-              <EmptySheet busy={busy} />
-            )}
+            ))}
           </div>
-        </div>
+        </section>
+
+        <section className="band" id="pricing" aria-labelledby="pricing-title">
+          <h2 id="pricing-title" className="section-title">
+            Preise <span className="en">Pricing</span>
+          </h2>
+          <PricingTable />
+        </section>
+
+        <section className="band cta-band">
+          <h2>Probieren Sie es mit Ihrem eigenen Bauteil.</h2>
+          <Link className="btn" href="/quote">
+            Jetzt Angebot erstellen
+          </Link>
+        </section>
       </main>
     </>
   );

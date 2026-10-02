@@ -53,12 +53,51 @@ def test_cylindrical_part_goes_to_lathe():
 def test_capacity_delay_flag_and_five_days():
     ok = run(manual_input())
     body = manual_input()
-    body["factory_status"]["machine_availability"]["CNC_3_Axis"] = False
+    # No free substitute: 3-axis busy and the 5-axis centre too.
+    body["factory_status"]["machine_availability"].update(CNC_3_Axis=False, CNC_5_Axis=False)
     r = run(body)
     assert r.quote.selected_process == "CNC_3_Axis"
     assert "CAPACITY_DELAY" in r.analysis.flags
     assert "Capacity Delay" in r.quote.feasibility_notes
     assert r.quote.recommended_lead_time_days == ok.quote.recommended_lead_time_days + 5
+
+
+def test_busy_3_axis_reroutes_to_free_5_axis():
+    ok = run(manual_input())
+    body = manual_input()
+    body["factory_status"]["machine_availability"]["CNC_3_Axis"] = False
+    r = run(body)
+    assert r.analysis.rule_based_process == "CNC_3_Axis"
+    assert r.quote.selected_process == "CNC_5_Axis"
+    assert r.quote.feasibility == "Feasible"
+    assert "CAPACITY_REROUTE" in r.analysis.flags
+    assert "CAPACITY_DELAY" not in r.analysis.flags
+    assert "ENVELOPE_REROUTE" not in r.analysis.flags
+    assert r.quote.recommended_lead_time_days < ok.quote.recommended_lead_time_days + 5
+
+
+def test_busy_lathe_reroutes_to_milling():
+    body = manual_input()
+    body["cad_metadata"].update(
+        bounding_box=[40.0, 40.0, 120.0],
+        volume_cm3=140.0,
+        surface_area_cm2=170.0,
+        features={"holes": 1, "threads": 0, "pockets": 0, "complex_curves": 0},
+    )
+    body["factory_status"]["machine_availability"]["Lathe"] = False
+    r = run(body)
+    assert r.analysis.rule_based_process == "Lathe"
+    assert r.quote.selected_process == "CNC_3_Axis"
+    assert "CAPACITY_REROUTE" in r.analysis.flags
+
+
+def test_busy_5_axis_job_waits_instead_of_downgrading():
+    body = manual_input()
+    body["cad_metadata"]["features"]["complex_curves"] = 1
+    body["factory_status"]["machine_availability"]["CNC_5_Axis"] = False
+    r = run(body)
+    assert r.quote.selected_process == "CNC_5_Axis"
+    assert "CAPACITY_DELAY" in r.analysis.flags
 
 
 def test_envelope_reroute_to_5_axis():

@@ -24,9 +24,11 @@ class Flag:
 @dataclass
 class RuleDecision:
     rule_process: Process  # what rule 1 asks for
-    process: Process  # what we route to after envelope checks
+    process: Process  # what we route to after envelope and capacity checks
     reasons_de: list[str] = field(default_factory=list)
     reasons_en: list[str] = field(default_factory=list)
+    # Why `process` differs from `rule_process`: None, "envelope" or "capacity".
+    reroute: str | None = None
 
 
 def worst(*levels: Feasibility) -> Feasibility:
@@ -110,10 +112,53 @@ def select_process(geo: GeometryProfile, fits: dict[Process, bool]) -> RuleDecis
     for alt in fallbacks:
         if fits[alt]:
             decision.process = alt
+            decision.reroute = "envelope"
             decision.reasons_de.append(f"Bauteil überschreitet Arbeitsraum {rule.value} - Umplanung auf {alt.value}")
             decision.reasons_en.append(f"part exceeds the {rule.value} work envelope - re-routed to {alt.value}")
             return decision
     return decision
+
+
+# Machines that can take over a job when the preferred one is busy. A 5-axis centre can
+# do anything a 3-axis centre can; a turned part can be milled. A 5-axis job has no
+# substitute, so it waits (Capacity Delay).
+CAPACITY_SUBSTITUTES: dict[Process, list[Process]] = {
+    Process.LATHE: [Process.CNC_3_AXIS, Process.CNC_5_AXIS],
+    Process.CNC_3_AXIS: [Process.CNC_5_AXIS],
+    Process.CNC_5_AXIS: [],
+}
+
+
+def reroute_for_capacity(decision: RuleDecision, candidates: dict[Process, ProcessCost]) -> RuleDecision:
+    """Move the job to a free, capable machine when the selected one is busy.
+
+    The substitute is only taken if it actually delivers sooner; among equally fast
+    substitutes the cheaper one wins. Without a better substitute the job stays put and
+    `assess` raises the Capacity Delay flag.
+    """
+    current = candidates.get(decision.process)
+    if current is None or current.machine_available:
+        return decision
+    options = [
+        candidates[p]
+        for p in CAPACITY_SUBSTITUTES[decision.process]
+        if p in candidates and candidates[p].fits_envelope and candidates[p].machine_available
+    ]
+    options = [c for c in options if c.lead_time_days < current.lead_time_days]
+    if not options:
+        return decision
+    best = min(options, key=lambda c: (c.lead_time_days, c.breakdown.net_total_eur))
+    busy = decision.process.value
+    return RuleDecision(
+        rule_process=decision.rule_process,
+        process=best.process,
+        reasons_de=[
+            *decision.reasons_de,
+            f"{busy} ausgelastet - Umplanung auf freie Maschine {best.process.value}",
+        ],
+        reasons_en=[*decision.reasons_en, f"{busy} is busy - re-routed to free machine {best.process.value}"],
+        reroute="capacity",
+    )
 
 
 def assess(
@@ -146,8 +191,10 @@ def assess(
             "Bauteil überschreitet den Arbeitsraum aller verfügbaren Maschinen",
             "part exceeds the work envelope of every machine in the park",
         )
-    if decision.process is not decision.rule_process and fits[decision.process] and len(decision.reasons_de) > 1:
+    if decision.reroute == "envelope" and fits[decision.process]:
         add("ENVELOPE_REROUTE", "Review Required", decision.reasons_de[-1], decision.reasons_en[-1])
+    if decision.reroute == "capacity":
+        add("CAPACITY_REROUTE", "Feasible", decision.reasons_de[-1], decision.reasons_en[-1])
     if chosen is not None and not chosen.machine_available:
         alt = [
             p.value

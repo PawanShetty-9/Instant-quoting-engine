@@ -91,7 +91,7 @@ All backend settings are environment variables with the prefix `QUOTE_` (see
 | `QUOTE_RATE_CNC_3_AXIS_EUR_H` … | 85 / 110 / 75 | Default hourly rates |
 | `QUOTE_DEFAULT_ENERGY_SURCHARGE_PERCENT` | 4 | Energy surcharge |
 | `QUOTE_DEFAULT_TARGET_MARGIN_PERCENT` | 15 | Margin |
-| `QUOTE_MATERIAL_BASIS` | `part` | `part` (contract) or `stock` (raw blank) |
+| `QUOTE_MATERIAL_BASIS` | `stock` | `stock` (raw blank) or `part` (original contract formula) |
 | `QUOTE_MARGIN_MODE` | `markup` | `markup` (Gewinnzuschlag) or `margin` |
 | `QUOTE_QUOTE_VALIDITY_DAYS` | 30 | Price validity printed on the quote |
 | `QUOTE_QUOTE_RETENTION_DAYS` | 90 | Deletion period for stored quotes |
@@ -99,8 +99,30 @@ All backend settings are environment variables with the prefix `QUOTE_` (see
 | `QUOTE_COMPANY_*` | placeholders | Legal entity data (§ 35a GmbHG) on every quote |
 | `WEB_CONCURRENCY` | 2 | Uvicorn workers |
 | `FORWARDED_ALLOW_IPS` | 127.0.0.1 | Proxies trusted for `X-Forwarded-For` |
+| `QUOTE_TRUSTED_PROXY_HOPS` | 0 | Reverse proxies in front of the API (Caddy/Render: 1); the client IP for quotas is read from that position in `X-Forwarded-For` |
+| `QUOTE_PUBLIC_APP_URL` | `http://localhost:3000` | Web app URL; Stripe redirects back here |
+| `QUOTE_STRIPE_SECRET_KEY` | – | `sk_test_…` first, `sk_live_…` at launch. Unset: demo upgrades outside production, checkout disabled in production |
+| `QUOTE_STRIPE_WEBHOOK_SECRET` | – | `whsec_…` of the endpoint `/api/v1/billing/webhook` (events: `checkout.session.completed`, `customer.subscription.updated`, `customer.subscription.deleted`) |
+| `QUOTE_STRIPE_AUTOMATIC_TAX` | false | Let Stripe Tax add 19 % MwSt to subscription invoices |
+| `QUOTE_BILLING_DEMO_MODE` | true | Allow keyless demo upgrades (never in production) |
+
+## Payments (Stripe)
+
+Plans, prices, quotas and features are defined once in `backend/app/billing/plans.py`; the pricing
+page and Stripe Checkout read from there. To try the paid flow end to end in **test mode**:
+
+1. Create a Stripe account and copy the test secret key (`sk_test_…`) into `QUOTE_STRIPE_SECRET_KEY`.
+2. Forward webhooks locally: `stripe listen --forward-to localhost:8000/api/v1/billing/webhook`
+   and put the printed `whsec_…` into `QUOTE_STRIPE_WEBHOOK_SECRET`.
+3. Sign up in the web app, choose Pro, pay with card `4242 4242 4242 4242`. The webhook switches
+   the account to Pro; cancelling in the customer portal switches it back to Free.
+
+No products or prices need to be created in Stripe: Checkout receives the price from `plans.py`.
 
 ## Go-live checklist
+
+- [ ] Stripe live keys and webhook set, Stripe Tax (or tax rates) activated, customer portal
+      configured to allow cancellation
 
 - [ ] Real company data in `QUOTE_COMPANY_*`; terms in `backend/app/legal/terms.py` reviewed by
       counsel and aligned with your AGB
