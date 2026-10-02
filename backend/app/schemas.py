@@ -14,6 +14,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from app.billing.plans import Feature
 from app.catalog.machines import Process
 
 Feasibility = Literal["Feasible", "Review Required", "Infeasible"]
@@ -239,12 +240,21 @@ class Commercial(BaseModel):
     terms_en: list[str]
 
 
+class Entitlements(BaseModel):
+    """What the plan that created the quote unlocks - the web app shows or locks UI from this."""
+
+    # Quotes stored before plans existed keep every detail.
+    plan: str = "business"
+    features: list[str] = Field(default_factory=lambda: [f.value for f in Feature])
+
+
 class QuoteResponse(BaseModel):
     quote: EngineQuote
     engine_input: EngineInput
     analysis: Analysis
     commercial: Commercial
     has_preview: bool = False
+    entitlements: Entitlements = Field(default_factory=Entitlements)
 
 
 class FactoryState(BaseModel):

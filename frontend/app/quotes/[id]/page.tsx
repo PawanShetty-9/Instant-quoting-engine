@@ -90,9 +90,7 @@ export default function PrintableQuote() {
   useEffect(() => {
     getQuote(id)
       .then(setData)
-      .catch((e: ApiError) =>
-        setError(e.status === 404 ? "Angebot nicht gefunden oder bereits gelöscht." : e.message),
-      );
+      .catch((e: ApiError) => setError(e.status === 404 ? "Angebot nicht gefunden oder bereits gelöscht." : e.message));
   }, [id]);
 
   useEffect(() => {
@@ -113,6 +111,18 @@ export default function PrintableQuote() {
     return (
       <main className="letter-screen">
         <p className="en">Angebot wird geladen …</p>
+      </main>
+    );
+  }
+
+  if (!data.entitlements.features.includes("printable_quote")) {
+    return (
+      <main className="letter-screen">
+        <div className="error" role="alert">
+          <strong>Druckfertiges Angebot ist Teil von Pro</strong>
+          Das Angebot {data.quote.quote_id} wurde im {data.entitlements.plan}-Plan erstellt.{" "}
+          <a href="/pricing">Pläne ansehen</a>
+        </div>
       </main>
     );
   }
@@ -211,8 +221,8 @@ export default function PrintableQuote() {
                 <div className="pos-meta">
                   {t.material}: {c.material_label}
                   <br />
-                  {t.process}: {PROCESS_LABEL[quote.selected_process][lang]} · {t.envelope} {num(x, 1)} × {num(y, 1)}{" "}
-                  × {num(z, 1)} mm
+                  {t.process}: {PROCESS_LABEL[quote.selected_process][lang]} · {t.envelope} {num(x, 1)} × {num(y, 1)} ×{" "}
+                  {num(z, 1)} mm
                   <br />
                   {t.time}: {duration(quote.estimated_production_time_hours)}
                 </div>

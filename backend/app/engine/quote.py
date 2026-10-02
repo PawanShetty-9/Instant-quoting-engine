@@ -32,6 +32,7 @@ from app.engine.rules import (
     notes_from_flags,
     overall,
     profile_from_metadata,
+    reroute_for_capacity,
     select_process,
     worst,
 )
@@ -100,6 +101,7 @@ class QuoteEngine:
                 candidates[p] = costing.cost_process(
                     p, geo, material, data.cost_vectors, data.factory_status, data.order.quantity, s
                 )
+            decision = reroute_for_capacity(decision, candidates)
         return geo, material, fits, decision, candidates
 
     def _flags_for(self, data, geo, decision, candidates, fits, material) -> list[Flag]:
@@ -112,7 +114,8 @@ class QuoteEngine:
         geo = profile_from_metadata(cad)
         return select_process(geo, {p: costing.fits(p, geo) for p in Process}).process
 
-    async def evaluate(self, data: EngineInput, quote_id: str) -> EngineResult:
+    async def evaluate(self, data: EngineInput, quote_id: str, ai_allowed: bool = True) -> EngineResult:
+        """Price ``data``. ``ai_allowed=False`` (plan without AI review) skips Claude entirely."""
         geo, material, fits, decision, candidates = self._kernel(data)
         flags = self._flags_for(data, geo, decision, candidates, fits, material)
         chosen = candidates.get(decision.process)
@@ -136,9 +139,9 @@ class QuoteEngine:
             margin_eur=chosen.margin_eur if chosen else 0.0,
         )
 
-        use_ai = self.ai is not None and self.settings.ai_mode != "off" and material is not None
+        use_ai = ai_allowed and self.ai is not None and self.settings.ai_mode != "off" and material is not None
         if not use_ai:
-            if self.settings.ai_mode == "required" and material is not None:
+            if ai_allowed and self.settings.ai_mode == "required" and material is not None:
                 raise AIRequiredError("AI engine required but not configured")
             return EngineResult(rules_quote, analysis, chosen, material)
 
@@ -250,7 +253,7 @@ class QuoteEngine:
             v.append("AI quote_id replaced by service-issued id")
 
         floor = overall(flags)
-        if process is not decision.rule_process:
+        if process is not decision.process:  # the AI overrode the kernel's routing
             floor = worst(floor, "Review Required")
         feasibility = worst(ai.feasibility, floor)
         if feasibility != ai.feasibility:

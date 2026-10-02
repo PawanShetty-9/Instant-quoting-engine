@@ -130,7 +130,7 @@ def test_factory_update_drives_capacity_delay(client, samples):
     r = client.put(
         "/api/v1/factory",
         json={
-            "machine_availability": {"CNC_5_Axis": True, "CNC_3_Axis": False, "Lathe": True},
+            "machine_availability": {"CNC_5_Axis": False, "CNC_3_Axis": False, "Lathe": True},
             "current_backlog_days": 10,
             "material_prices_eur_per_kg": {"AL_6082_T6": 9.0},
         },
@@ -161,3 +161,27 @@ def test_docs_disabled_in_production(tmp_path):
     with TestClient(create_app(s)) as c:
         assert c.get("/docs").status_code == 404
         assert c.get("/openapi.json").status_code == 404
+
+
+def test_client_ip_ignores_forged_forwarded_for(tmp_path, samples):
+    s = Settings(
+        environment="test",
+        database_path=str(tmp_path / "q.db"),
+        ai_mode="off",
+        rate_limit_per_window=1,
+        trusted_proxy_hops=1,
+    )
+    with TestClient(create_app(s)) as c:
+        # The proxy appended the real address last; the forged first entry must not open a new bucket.
+        first = {"X-Forwarded-For": "1.1.1.1, 203.0.113.7"}
+        forged = {"X-Forwarded-For": "9.9.9.9, 203.0.113.7"}
+        with open(samples["shaft"], "rb") as fh:
+            ok = c.post(
+                "/api/v1/quotes", files={"file": ("a.step", fh)}, data={"material": "AL_6082_T6"}, headers=first
+            )
+        assert ok.status_code == 201
+        with open(samples["shaft"], "rb") as fh:
+            r = c.post(
+                "/api/v1/quotes", files={"file": ("a.step", fh)}, data={"material": "AL_6082_T6"}, headers=forged
+            )
+        assert r.status_code == 429

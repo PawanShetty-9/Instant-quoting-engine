@@ -91,7 +91,7 @@ number. Anything unusual is routed to a human as *Review Required*.
 |---|---|
 | Security | Upload size cap (413), extension + magic-byte check, isolated parser process (timeout, `RLIMIT_AS`, `RLIMIT_CPU`), API-key auth with constant-time compare, per-IP rate limit, strict security headers / CSP, non-root read-only containers, no stack traces to clients |
 | Privacy (DSGVO) | No CAD file, filename or customer reference is sent to the AI; retention purge (default 90 days); self-hosted fonts (no Google Fonts requests); EU hosting region in the blueprint |
-| Correctness | `Decimal` money, cent-exact identities, reconciliation of AI output, 64 automated tests |
+| Correctness | `Decimal` money, cent-exact identities, reconciliation of AI output, 84 automated tests |
 | Robustness | AI failure, refusal, timeout or misconfiguration → deterministic rules quote (or 503 in `required` mode) |
 | Auditability | Every quote stored with engine input, flags, candidates, AI model and validation log |
 | Maintainability | Typed Pydantic contracts, ruff lint/format, CI on every push |
@@ -121,7 +121,7 @@ number. Anything unusual is routed to a human as *Review Required*.
 - The four reference parts route to 3-axis / lathe / 5-axis (multi-sided) / 5-axis (free-form).
 - The hand-calculated contract example is reproduced to the cent; `net + VAT = gross` holds for
   every quantity.
-- An unavailable machine yields `Capacity Delay` and +5 days.
+- An unavailable machine re-routes to a free capable machine; without one it yields `Capacity Delay` and +5 days.
 - Oversized parts are *Infeasible*; envelope re-routing and high order values are *Review Required*.
 - AI output with wrong numbers is corrected; AI cannot downgrade a hard-rule severity; refusals and
   API errors fall back to rules.

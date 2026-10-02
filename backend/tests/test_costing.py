@@ -25,7 +25,7 @@ def _cost(settings: Settings, process=Process.CNC_3_AXIS, quantity=1, **override
 
 
 def test_spec_formula_hand_calculation():
-    s = Settings(_env_file=None)
+    s = Settings(_env_file=None, material_basis="part")
     c = _cost(s)
     # Time: stock (106 x 66 x 26) - part 100 cm3 at 150 cm3/min, 200 cm2 at 25 cm2/min,
     # features 4*5 + 2*5 + 1*15 = 45 min, set-up 45 min.
@@ -68,6 +68,11 @@ def test_margin_mode_margin_vs_markup():
     assert markup.margin_eur == pytest.approx(cost * 0.15, abs=0.01)
     # True margin: margin / net price = 15 %
     assert margin.margin_eur / margin.breakdown.net_total_eur == pytest.approx(0.15, abs=1e-3)
+
+
+def test_stock_is_the_default_material_basis():
+    # Shops buy and pay for the whole blank, not the finished part.
+    assert Settings(_env_file=None).material_basis == "stock"
 
 
 def test_stock_basis_charges_raw_blank():

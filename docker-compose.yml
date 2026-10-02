@@ -10,8 +10,9 @@ services:
     environment:
       QUOTE_ENVIRONMENT: production
       QUOTE_DATABASE_PATH: /data/quotes.sqlite3
-      # Only reachable through Caddy on the internal network, so trust its X-Forwarded-For.
+      # Only reachable through Caddy, which overwrites X-Forwarded-For with the real client IP.
       FORWARDED_ALLOW_IPS: "*"
+      QUOTE_TRUSTED_PROXY_HOPS: "1"
     volumes:
       - quote-data:/data
     tmpfs:

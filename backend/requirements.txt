@@ -1,5 +1,6 @@
 # Runtime dependencies (pinned; update deliberately and re-run the test suite)
 anthropic==1.8.0
+httpx==0.28.1  # Stripe REST calls (billing/stripe_client.py)
 cadquery-ocp==8.0.1.0.0
 fastapi==0.141.1
 uvicorn[standard]==0.54.0

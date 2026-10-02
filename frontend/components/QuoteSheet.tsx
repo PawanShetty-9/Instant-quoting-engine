@@ -6,6 +6,7 @@ import { previewUrl } from "@/lib/api";
 import { PROCESS_LABEL, dateDe, duration, eur, num, splitNotes } from "@/lib/format";
 import CostBar from "./CostBar";
 import Stamp from "./Stamp";
+import Upsell from "./Upsell";
 
 const PartViewer = dynamic(() => import("./PartViewer"), { ssr: false });
 
@@ -14,6 +15,7 @@ const ZONES_V = ["1", "2", "3", "4"];
 
 const FLAG_LABEL: Record<string, string> = {
   CAPACITY_DELAY: "Kapazitätsengpass",
+  CAPACITY_REROUTE: "Auf freie Maschine umgeplant",
   THREADS_ESTIMATED: "Gewinde geschätzt",
   MESH_INPUT: "STL-Netz",
   MULTI_BODY: "Mehrkörper",
@@ -59,7 +61,15 @@ export function EmptySheet({ busy }: { busy: boolean }) {
       <div className="view">
         {busy && <div className="plotter" aria-hidden />}
         <div className="empty" aria-live="polite">
-          <svg width="72" height="72" viewBox="0 0 72 72" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden>
+          <svg
+            width="72"
+            height="72"
+            viewBox="0 0 72 72"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+            aria-hidden
+          >
             <path d="M12 26 36 12l24 14v24L36 64 12 50z" />
             <path d="M12 26l24 14 24-14M36 40v24" />
             <circle cx="46" cy="30" r="4" />
@@ -112,6 +122,9 @@ export default function QuoteSheet({
   const t = analysis.time_breakdown;
   const m = analysis.material;
   const diag = cad.diagnostics;
+  const has = (f: string) => (data.entitlements?.features ?? []).includes(f as never);
+  const showBreakdown = has("cost_breakdown");
+  const canPrint = has("printable_quote");
 
   return (
     <div>
@@ -272,86 +285,105 @@ export default function QuoteSheet({
           </p>
         </div>
 
-        <div className="card">
-          <h2>
-            Kosten<span className="en">Cost</span>
-          </h2>
-          <CostBar
-            material={b.material_cost_eur}
-            machining={b.machining_cost_eur}
-            energy={b.energy_surcharge_eur}
-            margin={analysis.margin_eur}
-          />
-          <dl className="kv" style={{ marginTop: 16 }}>
-            <dt>Materialpreis</dt>
-            <dd className="figure">{eur(engine_input.cost_vectors.material_per_kg)}/kg</dd>
-            <dt>Maschinenstundensatz</dt>
-            <dd className="figure">
-              {eur(
-                b.machining_cost_eur && quote.estimated_production_time_hours
-                  ? b.machining_cost_eur / quote.estimated_production_time_hours
-                  : engine_input.cost_vectors.machine_hourly_rate,
-              )}
-              /h
-            </dd>
-            {m && (
-              <>
-                <dt>Rohteil</dt>
-                <dd className="figure">
-                  {m.stock_dimensions_mm.map((d) => num(d, 0)).join(" × ")} mm
-                </dd>
-                <dt>Zerspanungsverhältnis</dt>
-                <dd className="figure">{num(m.buy_to_fly_ratio, 2)} : 1</dd>
-              </>
-            )}
-          </dl>
-        </div>
+        {!showBreakdown && (
+          <div className="span">
+            <Upsell title="Kalkulation im Detail" en="Full cost breakdown">
+              Material, Maschinenzeit, Rohteil, Rüsten und der Vergleich aller Maschinen – plus KI-Prüfung durch einen
+              virtuellen Kalkulator und das druckfertige Angebot als PDF.
+            </Upsell>
+          </div>
+        )}
 
-        <div className="card">
-          <h2>
-            Fertigung<span className="en">Manufacturing</span>
-          </h2>
-          <dl className="kv">
-            {t && (
-              <>
-                <dt>Rüsten ({t.setups} Aufspannung{t.setups > 1 ? "en" : ""})</dt>
-                <dd className="figure">{num(t.setup_minutes)} min</dd>
-                <dt>Schruppen je Teil</dt>
-                <dd className="figure">{num(t.roughing_minutes_per_part, 1)} min</dd>
-                <dt>Schlichten je Teil</dt>
-                <dd className="figure">{num(t.finishing_minutes_per_part, 1)} min</dd>
-                <dt>Merkmale Erstteil</dt>
-                <dd className="figure">{num(t.feature_minutes_first_part)} min</dd>
-              </>
+        {showBreakdown && (
+          <div className="card">
+            <h2>
+              Kosten<span className="en">Cost</span>
+            </h2>
+            <CostBar
+              material={b.material_cost_eur}
+              machining={b.machining_cost_eur}
+              energy={b.energy_surcharge_eur}
+              margin={analysis.margin_eur}
+            />
+            <dl className="kv" style={{ marginTop: 16 }}>
+              <dt>Materialpreis</dt>
+              <dd className="figure">{eur(engine_input.cost_vectors.material_per_kg)}/kg</dd>
+              <dt>Maschinenstundensatz</dt>
+              <dd className="figure">
+                {eur(
+                  b.machining_cost_eur && quote.estimated_production_time_hours
+                    ? b.machining_cost_eur / quote.estimated_production_time_hours
+                    : engine_input.cost_vectors.machine_hourly_rate,
+                )}
+                /h
+              </dd>
+              {m && (
+                <>
+                  <dt>Rohteil</dt>
+                  <dd className="figure">{m.stock_dimensions_mm.map((d) => num(d, 0)).join(" × ")} mm</dd>
+                  <dt>Zerspanungsverhältnis</dt>
+                  <dd className="figure">{num(m.buy_to_fly_ratio, 2)} : 1</dd>
+                </>
+              )}
+            </dl>
+          </div>
+        )}
+
+        {showBreakdown && (
+          <div className="card">
+            <h2>
+              Fertigung<span className="en">Manufacturing</span>
+            </h2>
+            <dl className="kv">
+              {t && (
+                <>
+                  <dt>
+                    Rüsten ({t.setups} Aufspannung{t.setups > 1 ? "en" : ""})
+                  </dt>
+                  <dd className="figure">{num(t.setup_minutes)} min</dd>
+                  <dt>Schruppen je Teil</dt>
+                  <dd className="figure">{num(t.roughing_minutes_per_part, 1)} min</dd>
+                  <dt>Schlichten je Teil</dt>
+                  <dd className="figure">{num(t.finishing_minutes_per_part, 1)} min</dd>
+                  <dt>Merkmale Erstteil</dt>
+                  <dd className="figure">{num(t.feature_minutes_first_part)} min</dd>
+                </>
+              )}
+              <dt>Bohrungen / Gewinde</dt>
+              <dd className="figure">
+                {cad.features.holes} / {cad.features.threads}
+                {diag?.thread_detection === "tap_drill_heuristic" && cad.features.threads > 0 ? " *" : ""}
+              </dd>
+              <dt>Taschen / Absätze</dt>
+              <dd className="figure">{cad.features.pockets}</dd>
+              <dt>Freiformbereiche</dt>
+              <dd className="figure">{cad.features.complex_curves}</dd>
+              {diag && diag.access_directions.length > 0 && (
+                <>
+                  <dt>Bearbeitungsrichtungen</dt>
+                  <dd className="figure">{diag.access_directions.join(" ")}</dd>
+                </>
+              )}
+            </dl>
+            {diag?.thread_detection === "tap_drill_heuristic" && cad.features.threads > 0 && (
+              <p className="help" style={{ marginBottom: 0 }}>
+                * aus Kernlochdurchmessern abgeleitet – bei Abweichung Gewindeanzahl links angeben.
+              </p>
             )}
-            <dt>Bohrungen / Gewinde</dt>
-            <dd className="figure">
-              {cad.features.holes} / {cad.features.threads}
-              {diag?.thread_detection === "tap_drill_heuristic" && cad.features.threads > 0 ? " *" : ""}
-            </dd>
-            <dt>Taschen / Absätze</dt>
-            <dd className="figure">{cad.features.pockets}</dd>
-            <dt>Freiformbereiche</dt>
-            <dd className="figure">{cad.features.complex_curves}</dd>
-            {diag && diag.access_directions.length > 0 && (
-              <>
-                <dt>Bearbeitungsrichtungen</dt>
-                <dd className="figure">{diag.access_directions.join(" ")}</dd>
-              </>
-            )}
-          </dl>
-          {diag?.thread_detection === "tap_drill_heuristic" && cad.features.threads > 0 && (
-            <p className="help" style={{ marginBottom: 0 }}>
-              * aus Kernlochdurchmessern abgeleitet – bei Abweichung Gewindeanzahl links angeben.
-            </p>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       <div className="actions">
-        <a className="btn" href={`/quotes/${quote.quote_id}`} target="_blank" rel="noopener">
-          Angebot drucken · PDF
-        </a>
+        {canPrint ? (
+          <a className="btn" href={`/quotes/${quote.quote_id}`} target="_blank" rel="noopener">
+            Angebot drucken · PDF
+          </a>
+        ) : (
+          <a className="btn" href="/pricing">
+            🔒 PDF-Angebot mit Pro
+          </a>
+        )}
         <button type="button" className="btn ghost" onClick={onReset}>
           Weiteres Bauteil kalkulieren
         </button>

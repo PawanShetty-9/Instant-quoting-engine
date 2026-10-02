@@ -32,15 +32,17 @@ ratio) and `flags` (detected risks with a severity).
 cylindrical parts use the Lathe; standard prismatic parts use CNC_3_Axis. Select \
 `engine_reference.rule_based_process` unless it has fits_envelope=false or the diagnostics \
 clearly contradict the parser's classification - any deviation must be justified in the notes. \
-Never select a candidate with fits_envelope=false. If the selected machine's availability is \
-false, flag a "Capacity Delay" in the notes; its +5 business days are already contained in that \
-candidate's recommended_lead_time_days.
+Never select a candidate with fits_envelope=false. If the preferred machine was busy the kernel \
+has already re-routed to a free machine that delivers sooner (rule_reasons say so); keep that \
+choice. If the selected machine's availability is still false, flag a "Capacity Delay" in the \
+notes; its +5 business days are already contained in that candidate's recommended_lead_time_days.
 2. TIME ESTIMATION: base set-up 45 min (+ re-clamping per extra set-up); material removal from \
 stock (bounding box plus allowance) minus part volume at the material's effective removal rate; \
 finishing proportional to surface area; feature penalties 5 min per hole/thread, 15 min per \
 pocket, 30 min per complex-curve region. The kernel applied this; use the selected candidate's \
 estimated_production_time_hours.
-3. FINANCIAL FORMULA: Material Cost = (Volume x Density) x material_per_kg; Machining Cost = \
+3. FINANCIAL FORMULA: Material Cost = (Volume x Density) x material_per_kg, where Volume is the \
+raw stock blank when engine_reference.material_basis is "stock" (else the finished part); Machining Cost = \
 Total Runtime Hours x machine_hourly_rate; Base Production Cost = Material + Machining; apply \
 energy_surcharge_percent to the base; apply target_margin_percent to reach the Net Price. Copy the \
 selected candidate's cost_breakdown values exactly - the service re-verifies every figure and \
